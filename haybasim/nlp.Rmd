@@ -1,0 +1,65 @@
+---
+title: "nlp"
+output: html_document
+date: "2022-11-21"
+---
+
+```{r}
+
+library(tm)
+## Loading required package: NLP
+library(SnowballC)
+data_1<- read.csv("C:/Users/yamro/Downloads/dati.csv")
+data1<- subset(data_1, select = -workerId)
+
+corpus = VCorpus(VectorSource(data_1$text))
+corpus = tm_map(corpus, content_transformer(tolower))
+corpus = tm_map(corpus, removeNumbers)
+corpus = tm_map(corpus, removePunctuation)
+corpus = tm_map(corpus, removeWords, stopwords("english"))
+corpus = tm_map(corpus, stemDocument)
+corpus = tm_map(corpus, stripWhitespace)
+dtm = DocumentTermMatrix(corpus)
+dtm = removeSparseTerms(dtm, 0.999)
+freq<- sort(colSums(as.matrix(dtm)), decreasing=TRUE)
+findFreqTerms(dtm, lowfreq=60) #identifying terms that appears more than 60times
+
+```
+```{r}
+library("wordcloud")
+positive <- subset(data_1,mem_type=="real")
+head(positive)
+wordcloud(positive$text, max.words = 100, scale = c(3,0.5))
+negative <- subset(data_1,mem_type=="img")
+wordcloud(negative$text, max.words = 100, scale = c(3,0.5))
+convert_count <- function(x) {
+    y <- ifelse(x > 0, 1,0)
+    y <- factor(y, levels=c(0,1), labels=c("No", "Yes"))
+    y
+}
+datasetNB <- apply(dtm, 2, convert_count)
+
+dataset = as.data.frame(as.matrix(datasetNB))
+dataset$Class = data_1$mem_type
+data_1$mem_type
+set.seed(222)
+split = sample(2,nrow(dataset),prob = c(0.6,0.4),replace = TRUE)
+train_set = dataset[split == 1,]
+test_set = dataset[split == 2,] 
+prop.table(table(train_set$Class))
+
+train_set$Class
+```
+```{r}
+#naive bayes
+library(e1071)
+
+library(caret)
+control <- trainControl(method="repeatedcv", number=10, repeats=5)
+system.time( classifier_nb <- naiveBayes(train_set, train_set$Class, laplace = 1,
+                                         trControl = control,tuneLength = 7) )
+nb_pred = predict(classifier_nb, type = 'class', newdata = test_set)
+test_set$Class<- factor(test_set$Class)
+confusionMatrix(nb_pred,test_set$Class)
+classifier_nb$call
+```

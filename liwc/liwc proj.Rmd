@@ -1,0 +1,71 @@
+---
+title: "liwc new"
+output: html_document
+date: "2023-01-02"
+---
+
+```{r}
+#install.packages("tidyverse")
+library(tidyr)
+library(dplyr)
+library(tidytext)
+#files <- setwd("C:/Users/shiradar/Desktop/nlp/liwc")# Get the files names
+data <- text <- read.csv("C:/Users/yamro/Downloads/long_data.csv")
+
+data1<- select(data,"ResponseId","text")
+
+
+#install.packages("quanteda")
+library(quanteda)
+#
+
+#install.packages("devtools")
+#devtools::install_github("kbenoit/quanteda.dictionaries") 
+#devtools::install_github("quanteda/quanteda.sentiment")
+library("quanteda.sentiment")
+#install.packages("data.table")
+library(quanteda.dictionaries)
+library(data.table)
+
+liwc15 <- read.csv("C:/Users/yamro/Downloads/LIWC2015_dictionary.csv")
+l <- as.list(liwc15)
+l <- lapply(l,function(x) x[!is.na(x)])
+liwc_dict <- dictionary(l)
+
+#liwcalike uses the quanteda dictionaries to count
+#linguistic features (punctuation etc.)
+#and sentiment/categories according to the dictionary supplied
+#here for the example we used a dictionary with
+#positive and negative words
+text2<- corpus(data1,  docid_field = "ResponseId",
+  text_field = "text")
+sentimentz <- liwcalike(text2,dictionary=liwc_dict)
+colnames(sentimentz)
+senti_by_cond <- sentimentz %>% 
+  mutate(cond=(sentimentz$docname))
+senti_by_cond$cond <- text$Cond
+
+#now we'll measure the means of positive and negative per speaker
+senti_by_cond_plot <- senti_by_cond %>%
+  group_by(cond) %>% 
+  summarise(across(everything(), list(mean)))%>%
+  ungroup()
+senti_by_cond_plot
+
+#plot
+melted_val <-
+  senti_by_cond_plot %>%
+  pivot_longer(cols=c('Segment_1':'OtherP_1'),
+               names_to = 'valence',values_to = 'count')
+melted_val
+
+write.csv(sentimentz,"C:/Users/yamro/Downloads/senti.csv")
+write.csv(senti_by_cond,"C:/Users/yamro/Downloads/senticond.csv")
+
+########
+
+
+
+
+```
+

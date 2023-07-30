@@ -1,0 +1,145 @@
+---
+title: "proj"
+output: html_document
+date: "2022-08-29"
+---
+```{r}
+library(tidyverse)
+
+
+all_feats <- read_csv("C:/Users/yamro/Downloads/train_feats12.csv")
+
+
+#library(BayesFactor)
+
+longer_feat <- pivot_longer(select(all_feats,-workerId,-text,-split,-startPerson,-advadj),cols=setdiff(colnames(all_feats)[4:(ncol(all_feats)-1)],c('startPerson','advadj')))
+
+wider_feat <- pivot_wider(longer_feat,names_from = 'mem_type',values_from = 'value')
+tz <- longer_feat %>% group_by(name) %>% 
+  summarise(t=t.test(value~mem_type,var.equal=T,paired=T)$statistic,
+            df=t.test(value~mem_type,var.equal=T,paired=T)$parameter,
+            p=t.test(value~mem_type,var.equal=T,paired=T)$p.value,
+            d = effectsize::t_to_d(t.test(value~mem_type,var.equal=T,paired=T)$statistic,t.test(value~mem_type,var.equal=T,paired=T)$parameter,paired=T)$d)
+
+include0.05 <- tz$name[tz$p<0.05]
+include0.01 <- tz$name[tz$p<0.01]
+include0.001 <- tz$name[tz$p<0.001]
+include0.1 <- tz$name[tz$p<0.1]
+include0.15 <- tz$name[tz$p<0.15]
+include0.2 <- tz$name[tz$p<0.2]
+include0.25 <- tz$name[tz$p<0.25]
+include0.3 <- tz$name[tz$p<0.3]
+include0.35 <- tz$name[tz$p<0.35]
+include0.4 <- tz$name[tz$p<0.4]
+include0.5<- tz$name[tz$p<0.5]
+all<- tz$name[tz$p<=1]
+dat<- read.csv("C:/Users/yamro/Downloads/train_feats12.csv")
+dat$mem_type<- make.names(dat$mem_type,unique = F)
+library(dplyr)
+
+#convert each character column to factor
+
+dat<- dat[,-1]
+dat<-dat[,-2]
+split<-dat$split
+dat = dat %>% select(-"split")
+
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+
+
+
+
+
+
+
+
+
+```
+
+```{r}
+MYFUN<- function(VARIBALE){
+  
+
+
+
+dat = dat %>% select(c(VARIBALE,"mem_type"))
+
+train <- dat[split == "train",]
+test<-  dat[split == "test",]
+valid<- dat[split == "valid",]
+train = rbind(train,valid)
+
+
+# Fitting SVM to the Training set
+library(e1071)
+library(caret)
+ctrl <- trainControl(method="repeatedcv",   # 10fold cross validation
+                     repeats=7,         # do 5 repetitions of cv
+                     summaryFunction=twoClassSummary,   # Use AUC to pick the best model
+                     classProbs=TRUE)
+svm_Linear <- train(mem_type ~., data = train,
+                  method = "svmLinear",   # Radial kernel
+                  tuneLength = 10,                   # 5 values of the cost function
+                  preProc = c("center","scale"),  # Center and scale data
+                  metric="ROC",
+                  trControl=ctrl)
+
+y_predsvmlinear = predict(svm_Linear, newdata = test%>% select(-"mem_type"))
+
+svmlinearres<- mean(test$mem_type == y_predsvmlinear)
+
+svm_radial<-train(mem_type ~., data = train,
+                  method = "svmRadial",   # Radial kernel
+                  tuneLength = 10,                   # 5 values of the cost function
+                  preProc = c("center","scale"),  # Center and scale data
+                  metric="ROC",
+                  trControl=ctrl)
+             
+
+
+y_predsvmradial = predict(svm_radial, newdata = test%>% select(-"mem_type"))
+
+svmradialres<- mean(test$mem_type == y_predsvmradial)
+
+library(caret)
+library(glmnet)
+
+  
+# Training ELastic Net Regression model
+elastic_model <- train(mem_type ~., data = train,
+                           method = "glmnet",preProcess = c("center", "scale"),
+                           tuneLength = 20,
+                           trControl = ctrl)
+  
+
+# Model Prediction
+elasticpred <- predict(elastic_model, newdata = test%>% select(-"mem_type"))
+elasticrres<- mean(test$mem_type == elasticpred)
+
+sumres<- c(svmlinearres  ,svmradialres,elasticrres)
+print(sumres)
+
+}
+```
+```{r}
+SUMALLRES1<-MYFUN(include0.25)
+SUMALLRES2<-(MYFUN(include0.2))
+SUMALLRES3<-(MYFUN(include0.15))
+SUMALLRES4<-(MYFUN(include0.1))
+
+
+names<- c("svmlinear0.25" ,"svmradial0.25","elastic0.25"  , "svmlinear0.2" ,"svmradial0.2"  ,"elastic0.2"   ,  "svmlinear0.15","svmradial0.15"   ,"elastic0.15",  "svmlinear0.1", "svmradial0.1"  ,"elastic0.1" )
+
+  matric<- data.frame(names,c(SUMALLRES1,SUMALLRES2,SUMALLRES3,SUMALLRES4))
+  knitr::kable(matric, digits = 5)
+
+```
+
+
+
+
+
+
+  
+

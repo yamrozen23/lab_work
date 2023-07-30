@@ -1,0 +1,176 @@
+---
+title: "elastic"
+output: html_document
+date: "2022-09-16"
+---
+
+```{r}
+library(caret)
+library(caretEnsemble)
+library(tidyverse)
+library(kernlab)
+library(tidymodels)
+library(rsample)
+library(doParallel)
+
+dat <- read_csv("C:/Users/yamro/Downloads/train_feats12.csv")
+dat$mem_type<- make.names(dat$mem_type,unique = F)
+dat$mem_type<- as.factor(dat$mem_type)
+
+library(dplyr)
+dat2<- data.frame(dat$workerId,dat$split)
+workertrain<- dat2$dat.workerId[dat2$dat.split == "train"]
+workervalid<- dat2$dat.workerId[dat2$dat.split == "valid"]
+
+workertest<- dat2$dat.workerId[dat2$dat.split == "test"]
+
+#convert each character column to factor
+
+dat<- dat[,-1]
+dat<-dat[,-2]
+split<-dat$split
+
+dat = dat %>% select(-"split")
+dat = dat %>% select(-"PERCENT")
+
+
+all_feats <- read_csv("C:/Users/yamro/Downloads/train_feats12.csv")
+longer_feat <- pivot_longer(select(all_feats,-workerId,-text,-split,-startPerson,-advadj),cols=setdiff(colnames(all_feats)[4:(ncol(all_feats)-1)],c('startPerson','advadj')))
+
+wider_feat <- pivot_wider(longer_feat,names_from = 'mem_type',values_from = 'value')
+tz <- longer_feat %>% group_by(name) %>% 
+  summarise(t=t.test(value~mem_type,var.equal=T,paired=T)$statistic,
+            df=t.test(value~mem_type,var.equal=T,paired=T)$parameter,
+            p=t.test(value~mem_type,var.equal=T,paired=T)$p.value,
+            d = effectsize::t_to_d(t.test(value~mem_type,var.equal=T,paired=T)$statistic,t.test(value~mem_type,var.equal=T,paired=T)$parameter,paired=T)$d)
+
+include0.05 <- tz$name[tz$p<0.05]
+include0.01 <- tz$name[tz$p<0.01]
+include0.001 <- tz$name[tz$p<0.001]
+include0.1 <- tz$name[tz$p<0.1]
+include0.15 <- tz$name[tz$p<0.15]
+include0.2 <- tz$name[tz$p<0.2]
+include0.25 <- tz$name[tz$p<0.25]
+include0.3 <- tz$name[tz$p<0.3]
+include0.35 <- tz$name[tz$p<0.35]
+include0.4 <- tz$name[tz$p<0.4]
+include0.5<- tz$name[tz$p<0.5]
+include0.075<- tz$name[tz$p<0.075]
+include0.125<- tz$name[tz$p<0.125]
+
+all<- tz$name[tz$p<=1]
+
+```
+
+```{r}
+library(caret)
+
+myfun1<- function(VARIBALE){
+  
+
+
+
+dat = dat %>% select(c(VARIBALE,"mem_type"))
+
+train <- dat[split == "train",]
+test<-  dat[split == "test",]
+valid<- dat[split == "valid",]
+train = rbind(train,valid)
+}
+myfun1(include0.15)
+custom <- trainControl(method = "repeatedcv",
+
+                       number = 10,
+
+                       repeats = 2,
+
+                       verboseIter = F)
+set.seed(1234)
+en <- train(mem_type~.,
+            train,
+            method='glmnet',
+            tuneGrid =expand.grid(alpha=seq(0,1,length=20),
+                                  lambda =seq(0,2,length=30)),
+            trControl=custom)
+en
+saveRDS(en,"C:/Users/yamro/Downloads/model.rda")
+# Model Prediction
+elasticpred <- predict(en, newdata = test%>% select(-"mem_type"))
+elasticrres<- mean(test$mem_type == elasticpred)
+print(table(elasticpred,test$mem_type))
+print(elasticrres)
+elasticpredpribtrain <- predict(en, newdata = train%>% select(-"mem_type"), type = "prob")
+elasticpredpribtrain$id<-c(workertrain,workervalid) 
+memdat<- cbind(dat$workerId,dat$mem_type)
+elasticpredpribtest <- predict(en, newdata = test%>% select(-"mem_type"), type = "prob")
+elasticpredpribtest$id<-workertest
+
+pribtotal<- rbind(elasticpredpribtrain,elasticpredpribtest)
+pribtotal<- data.frame(pribtotal,memdat)
+pribtotal<- pribtotal[,-4]
+totalreal<-pribtotal$real>=0.5
+totalreal<- factor(totalreal)
+totalreal<- as.numeric(totalreal)
+mean(totalreal== as.numeric(dat$mem_type))
+sum(pribtotal$id[(862+217):(862+216+270)]== workertest)
+write.csv(pribtotal,"C:/Users/yamro/Downloads/probxl1.csv")
+AVI<-read.csv("C:/Users/yamro/Downloads/best_distilBERT_pred.csv")
+library(tidyverse)
+MYNEW <- left_join(AVI,pribtotal, by=c('workerId'='id', "Mem_Type"="X2"))
+MYNEW <- MYNEW[,-6]
+MYNEW$avr<- ((MYNEW$y_pred+MYNEW$img)/2)
+MYNEW$PRED<- ifelse(round(MYNEW$avr)== 1,"img","real")
+mean(MYNEW$PRED == MYNEW$Mem_Type)
+MYNEW$bin<- ifelse(MYNEW$Mem_Type == "real",0,1)
+REG23<- glm(bin~0+ y_pred+img, data = MYNEW, family ='binomial')
+predlm<- predict(REG23,MYNEW%>% select(c(y_pred,img)),type = "response")
+
+MYNEW$AVRLM<- predlm
+MYNEW$PREDLM<- ifelse(predlm >=0.5,"img","real")
+mean(MYNEW$PREDLM == MYNEW$Mem_Type)
+REG23$coefficients
+
+predlm<- predict(REG23,MYNEW%>% select(c(y_pred,img)),type = "response")
+spliting$dat.workerId  <- data.frame(dat$split,dat$workerId)
+
+MYNEW<- left_join(MYNEW,spliting, by = c("workerId"="dat.workerId"))
+mynewtrain<- subset(MYNEW,MYNEW$dat.split.x =="train")
+mynewtest <-subset(MYNEW,MYNEW$dat.split.x =="test")
+mean(mynewtrain$Mem_Type == mynewtrain$PRED)
+mean(mynewtrain$Mem_Type == mynewtrain$PREDLM)
+
+mean(mynewtest$Mem_Type== mynewtest$PRED)
+mean(mynewtest$Mem_Type== mynewtest$PREDLM)
+
+
+```
+
+```{r}
+include0.5 <- include0.5[include0.5 != "PERCENT"]
+dat = dat %>% select(c(include0.35,"mem_type")) 
+
+train <- dat[split == "train",]
+test<-  dat[split == "test",]
+valid<- dat[split == "valid",]
+train = rbind(train,valid)
+xtrain<- as.matrix(train %>% select(-"mem_type"))
+ytrain<- train %>% select("mem_type")
+
+xtest<- as.matrix(test %>% select(-"mem_type"))
+ytest<- test %>% select("mem_type")
+set.seed(123)
+train.control <- trainControl(method = "repeatedcv", number = 10, repeats = 2 , search = "random")
+                              
+# Train the model
+
+cv_for_best_value <- train(mem_type ~ ., data = train, method="glmnet", trControl = train.control, metric = "Accuracy", maximize = T)
+                  
+
+
+predict_train <- predict(cv_for_best_value, newdata= train %>% select(-"mem_type"))
+confusionMatrix(predict_train,ytrain$mem_type)
+predict_test<- predict(cv_for_best_value, test %>% select(-"mem_type"))
+confusionMatrix(predict_test, ytest$mem_type)
+PLOTY<-read.csv("C:/Users/yamro/Downloads/probxl.csv")
+hist(PLOTY$real)
+```

@@ -1,0 +1,81 @@
+---
+title: "proj"
+author: "yam rozen and dean nassa"
+date: "5/18/2022"
+output: html_document
+---
+
+```{r}
+library(sjPlot)
+library(sjmisc)
+library(ggplot2)
+data(efc)
+theme_set(theme_sjplot())
+library(ggplot2)
+library(lmerTest)
+
+
+dataoneway<-read.csv("C:/Users/yamro/Downloads/PSY1.csv")
+# CATEGORIAL DIVIDE FOR TMICA
+dataoneway$mica.quastion <-ifelse(dataoneway$mica.quastion >= 24 ,"high", "low")
+#the testS
+
+
+
+#Assumption 1: All samples are independent, and collected in >2 independent categorical classifications
+
+#Assumption 2: Dependent variable is continuous
+
+#Assumption 3: Normal distributions of each classification, no major outliers
+
+Group1 <- subset(dataoneway, fidbek == "1")
+Group2 <- subset(dataoneway, fidbek == "0")
+Group3 <- subset(dataoneway, mica.quastion == "high")
+Group4 <- subset(dataoneway, mica.quastion == "low")
+
+
+qqnorm(Group1$mesugalut,main = "1")
+qqline(Group1$mesugalut)
+
+qqnorm(Group2$mesugalut,main = "0")
+qqline(Group2$mesugalut)
+
+qnorm(Group3$mesugalut)
+qqline(Group3$mesugalut)
+
+qnorm(Group4$mesugalut)
+qqline(Group4$mesugalut)
+
+
+
+
+#########################################################################
+
+dataoneway$fidbek<-factor(dataoneway$fidbek)
+model1 = lm(mesugalut ~ fidbek*mica.quastion , data = dataoneway)
+model1
+anova(model1)
+
+
+
+#########################################################################
+
+
+#Data visualisation
+
+
+colnames(dataoneway) <- make.unique(names(dataoneway))
+
+ggplot(dataoneway, aes(x = factor(fidbek), y = mesugalut)) +
+  geom_boxplot(fill = "grey80", colour = "black") +
+  scale_x_discrete() + xlab(" fidbek") +
+  ylab("mesugalut ")
+plot_model(model1, type = "int")
+model2<- lm(mesugalut ~ mica.quastion*fidbek , data = dataoneway)
+plot_model(model2, type = "int")
+
+
+
+```
+
+

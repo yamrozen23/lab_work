@@ -1,0 +1,96 @@
+---
+title: "yan"
+output: html_document
+date: "2022-11-14"
+---
+
+```{r}
+library(readr)
+library(dplyr)
+ 
+#Text mining packages
+library(tm)
+library(SnowballC)
+ 
+#loading the data
+t1 <- read_csv("C:/Users/yamro/Downloads/dati.csv")
+glimpse(t1) 
+corpus = Corpus(VectorSource(t1$text))
+corpus = tm_map(corpus, PlainTextDocument)
+corpus = tm_map(corpus, tolower)
+corpus = tm_map(corpus, removePunctuation)
+corpus = tm_map(corpus, stemDocument)
+frequencies = DocumentTermMatrix(corpus)
+sparse = removeSparseTerms(frequencies, 0.995)
+tSparse = as.data.frame(as.matrix(sparse))
+colnames(tSparse) = make.names(colnames(tSparse))
+tSparse$mem_type = t1$mem_type
+prop.table(table(tSparse$mem_type)) #73.6% is the baseline accuracy
+library(caTools)
+set.seed(100)
+split = sample.split(tSparse$mem_type, SplitRatio = 0.7)
+trainSparse = tSparse[split,]
+sum(split)
+testSparse =  tSparse[!split,]
+
+library(randomForest)
+set.seed(100)
+trainSparse$mem_type = as.factor(trainSparse$mem_type)
+testSparse$mem_type = as.factor(testSparse$mem_type )
+ library(caret)
+
+#Lines 5 to 7
+RF_model = randomForest(mem_type ~ ., data=trainSparse)
+fit <- train(mem_type ~ ., data = trainSparse, method = 'bayesglm')
+PREDICttrain<-predict(fit, newdata = trainSparse)
+mean(PREDICttrain == trainSparse$mem_type)
+
+RF_model$confusion
+predictRF = predict(RF_model, newdata=testSparse)
+table(testSparse$mem_type, predictRF)
+mean(predictRF == testSparse$mem_type)
+```
+```{r}
+library(keras)
+library(tidyverse)
+t2 <- read_csv("C:/Users/yamro/Downloads/dati.csv")
+glimpse(t2)
+text <- t2$text
+max_features <- 1000
+tokenizer <- text_tokenizer(num_words = max_features)
+tokenizer %>% 
+  fit_text_tokenizer(text)
+ytext_seqs <- texts_to_sequences(tokenizer, text)
+# Set parameters:
+maxlen <- 100
+batch_size <- 32
+embedding_dims <- 50
+filters <- 64
+kernel_size <- 3
+hidden_dims <- 50
+epochs <- 5
+x_train <- text_seqs %>%
+  pad_sequences(maxlen = maxlen)
+y_train <- t2$mem_type
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+

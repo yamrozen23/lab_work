@@ -1,0 +1,57 @@
+---
+title: "RATIO SPACY"
+output: html_document
+date: "2022-12-05"
+---
+
+```{r}
+
+test_ner<- read.csv("C:/Users/yamro/Downloads/test_ner.csv")
+test_pos<- read.csv("C:/Users/yamro/Downloads/test_pos.csv")
+mid_pos<- read.csv("C:/Users/yamro/Downloads/midterm_pos.csv")
+mid_ner<- read.csv("C:/Users/yamro/Downloads/midterm_ner.csv")
+test_pos$workerId<- factor(test_pos$workerId)
+test_pos$pos<- factor(test_pos$pos)
+test_ner$workerId<- factor(test_ner$workerId)
+test_ner$label<- factor(test_ner$label)
+
+mid_ner$workerId<- factor(mid_ner$workerId)
+mid_ner$label<- factor(mid_ner$label)
+mid_pos$workerId<- factor(mid_pos$workerId)
+mid_pos$pos<- factor(mid_pos$pos)
+######################################################################
+
+#########################
+NET_TEST_POS<-table(test_pos$pos,test_pos$workerId,test_pos$memType)
+NET_TEST_NER<-table(test_ner$label,test_ner$workerId,test_ner$memType)
+NET_mid_NER<-table(mid_ner$label,mid_ner$workerId,mid_ner$memType)
+NET_mid_POS<-table(mid_pos$pos,mid_pos$workerId,mid_pos$memType)
+unique(test_pos$pos)
+#### 
+pr_noun_noun_test<- NET_TEST_POS["PRON",,]/NET_TEST_POS["NOUN",,]
+pr_noun_noun_MID<- NET_mid_POS["PRON",,]/NET_mid_POS["NOUN",,]
+########
+ADV_ADJ_test<- NET_TEST_POS["ADV",,]/NET_TEST_POS["ADJ",,]
+ADV_ADJ_MID<- NET_mid_POS["ADV",,]/NET_mid_POS["ADJ",,]
+###########
+ADJ_NOUN_test<- NET_TEST_POS["ADJ",,]/NET_TEST_POS["NOUN",,]
+ADJ_NOUN_MID<- NET_mid_POS["ADJ",,]/NET_mid_POS["NOUN",,]
+
+##########################
+ADV_VERB_test<- NET_TEST_POS["ADV",,]/NET_TEST_POS["VERB",,]
+ADV_VERB_MID<- NET_mid_POS["ADV",,]/NET_mid_POS["VERB",,]
+##########
+VERB_NOUN_test<- NET_TEST_POS["VERB",,]/NET_TEST_POS["NOUN",,]
+VERB_NOUN_MID<- NET_mid_POS["VERB",,]/NET_mid_POS["NOUN",,]
+#################
+NUMBEROFPLACES_test<- NET_mid_NER["GPE",,]
+NUMBEROFPLACES_mid<-NET_TEST_NER["GPE",,]
+###########################
+NUMBEROF_NAME_test<- NET_mid_NER["PERSON",,]
+NUMBEROF_NAME_mid<-NET_TEST_NER["PERSON",,]
+##########
+NAME_NOUN_test<- NET_mid_NER["PERSON",,]/NET_mid_POS["NOUN",,]
+NAME__NOUN_mid<-NET_TEST_NER["PERSON",,]/NET_TEST_POS["NOUN",,]
+
+```
+

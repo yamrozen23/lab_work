@@ -1,0 +1,139 @@
+---
+title: "projacc"
+output: html_document
+date: "2022-09-26"
+---
+
+
+```{r}
+library(tidyverse)
+
+
+all_feats <- read_csv("C:/Users/yamro/Downloads/train_feats12.csv")
+
+
+#library(BayesFactor)
+
+longer_feat <- pivot_longer(select(all_feats,-workerId,-text,-split,-startPerson,-advadj),cols=setdiff(colnames(all_feats)[4:(ncol(all_feats)-1)],c('startPerson','advadj')))
+
+wider_feat <- pivot_wider(longer_feat,names_from = 'mem_type',values_from = 'value')
+tz <- longer_feat %>% group_by(name) %>% 
+  summarise(t=t.test(value~mem_type,var.equal=T,paired=T)$statistic,
+            df=t.test(value~mem_type,var.equal=T,paired=T)$parameter,
+            p=t.test(value~mem_type,var.equal=T,paired=T)$p.value,
+            d = effectsize::t_to_d(t.test(value~mem_type,var.equal=T,paired=T)$statistic,t.test(value~mem_type,var.equal=T,paired=T)$parameter,paired=T)$d)
+
+include0.05 <- tz$name[tz$p<0.05]
+include0.01 <- tz$name[tz$p<0.01]
+include0.001 <- tz$name[tz$p<0.001]
+include0.1 <- tz$name[tz$p<0.1]
+include0.15 <- tz$name[tz$p<0.15]
+include0.2 <- tz$name[tz$p<0.2]
+include0.25 <- tz$name[tz$p<0.25]
+include0.3 <- tz$name[tz$p<0.3]
+include0.35 <- tz$name[tz$p<0.35]
+include0.4 <- tz$name[tz$p<0.4]
+include0.5<- tz$name[tz$p<0.5]
+all<- tz$name[tz$p<=1]
+dat<- read.csv("C:/Users/yamro/Downloads/train_feats12.csv")
+dat$mem_type<- make.names(dat$mem_type,unique = F)
+library(dplyr)
+
+#convert each character column to factor
+
+dat<- dat[,-1]
+dat<-dat[,-2]
+split<-dat$split
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+
+dat = dat %>% select(-"split")
+
+
+
+
+
+
+
+
+```
+
+```{r}
+MYFUN<- function(VARIBALE){
+  
+
+
+
+dat = dat %>% select(c(VARIBALE,"mem_type"))
+
+train <- dat[split == "train",]
+test<-  dat[split == "test",]
+valid<- dat[split == "valid",]
+train = rbind(train,valid)
+
+
+
+
+library(caret)
+library(nnet)
+library(e1071)
+library(caretEnsemble)
+library(randomForest)
+
+# Model
+rf_model <- randomForest(mem_type ~ ., data = train, importance = TRUE)
+
+# Perform predictions on the validation set (20% of training data)
+rf_pred <- as.factor(predict(rf_model, test))
+
+rf_conf_mat <- table(true = test$mem_type, pred = rf_pred)
+
+# Results 
+print(rf_model)
+# Load the required libraries
+library(caret)
+library(nnet)
+library(e1071)
+library(caretEnsemble)
+
+# Prepare a Phase 1 model, by reducing the outcome to a binary `labor_force` variable
+
+# Create a new variable for workers
+
+# Model to predict workers 
+control <- trainControl(method = "repeatedcv", number = 10, repeats = 3, search = "grid", savePredictions = "final", index = createResample(train$worker, 10), summaryFunction = twoClassSummary, classProbs = TRUE, verboseIter = TRUE)
+
+# List of algorithms to use in ensemble
+alg_list <- c("rf", "glm", "gbm", "glmboost", "nnet", "treebag", "svmLinear")
+
+multi_mod <- caretList(mem_type ~ . , data = train, trControl = control, methodList = alg_list, metric = "ROC")
+
+# Results
+res <- resamples(multi_mod)
+summary(res)
+# Stack 
+stackControl <- trainControl(method = "repeatedcv", number = 10, repeats = 3, savePredictions = TRUE, classProbs = TRUE, verboseIter = TRUE)
+
+stack <- caretStack(multi_mod, method = "rf", metric = "Accuracy", trControl = stackControl)
+
+# Predict
+stack_test_preds <- data.frame(predict(stack, test, type = "response"))
+stack_test_preds
+}
+MYFUN(include0.1)
+
+
+
+
+```
+
+
+
+
+
+
+  
+
+
+```
+

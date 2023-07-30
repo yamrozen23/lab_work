@@ -1,0 +1,122 @@
+---
+title: "XM"
+author: "yam rozen and dean nassa"
+date: '2022-06-04'
+output: html_document
+---
+
+```{r}
+embedd<-read.csv("C:/Users/yamro/Downloads/Haibasim_embeddings1.csv", header = T)
+
+embedd2<-read.csv("C:/Users/yamro/Downloads/tr_comb_emb_feats.csv", header = T)
+
+embedd1<-subset(embedd, select = -c(y,ID,X))
+library(dplyr)
+library(caret)
+library(caretEnsemble)
+library(mice)
+library(doParallel)
+library(car)
+set.seed(101) 
+sample = createDataPartition(embedd$ID, p=0.8, list =  F)
+train = embedd[sample,]
+test  = embedd[-sample,]
+trainX = subset(train ,select = -c(y,ID,X))
+testX  = subset(test ,select = -c(y,ID,X))
+Y_train = subset(train , select = y)
+Y_test = subset(test ,select = y)
+Y_train$y= factor(Y_train$y)
+Y_test$y=factor(Y_test$y)
+train<-data.frame(trainX,Y_train$y)
+class(train$Y_train.y)
+test<-data.frame(testX,Y_test$y)
+
+summary(train$y)
+######################################
+#createmodel
+registerDoParallel(3)
+getDoParWorkers()
+set.seed(123)
+levels(train$Y_train.y)<-c("first_class", "second_class")
+
+table(train$Y_train.y)
+my_ctrl <- trainControl(method = "cv", 
+                        number = 5,
+                        classProbs = TRUE,
+                        savePredictions = "final",
+                        index = 
+                        createResample(train$Y_train.y, 3),
+                    
+                        allowParallel = TRUE)
+levels(train$Y_train.y)<-c("first_class", "second_class")
+
+
+
+model_list <- caretList(Y_train.y~ .,
+                        data = train ,
+                        methodList = c("glm", "nb"),
+                        metric = "Kappa",
+                        tuneList = NULL,
+                        continue_on_fail = FALSE,  
+                        preProcess = c("center", "scale"),
+                        trControl = my_ctrl)
+model_list$glm
+model_list$nb
+
+```
+
+```{r}
+embedd2<-read.csv("C:/Users/yamro/Downloads/tr_comb_emb_feats.csv", header = T)
+embedd2$id<- c(1:length(embedd2$X0))
+embedd2$y
+library(dplyr)
+library(caret)
+library(caretEnsemble)
+library(mice)
+library(doParallel)
+library(car)
+set.seed(101) 
+embedd2<-na.omit(embedd2)
+
+sample = createDataPartition(embedd2$id, p=0.8, list =  F)
+train = embedd2[sample,]
+test  = embedd2[-sample,]
+trainX = subset(train ,select = -c(y,id))
+testX  = subset(test ,select = -c(y,id))
+Y_train = subset(train , select = y)
+Y_test = subset(test ,select = y)
+Y_train$y= factor(Y_train$y)
+Y_test$y=factor(Y_test$y)
+train<-data.frame(trainX,Y_train$y)
+class(train$Y_train.y)
+test<-data.frame(testX,Y_test$y)
+registerDoParallel(3)
+getDoParWorkers()
+set.seed(123)
+levels(train$Y_train.y)<-c("first_class", "second_class")
+
+table(train$Y_train.y)
+my_ctrl <- trainControl(method = "cv", 
+                        number = 7,
+                        classProbs = TRUE,
+                        savePredictions = "final",
+                        index = 
+                        createResample(train$Y_train.y, 3),
+                    
+                        allowParallel = TRUE,
+                        )
+levels(train$Y_train.y)<-c("first_class", "second_class")
+
+
+model_list <- caretList(Y_train.y~ .,
+                        data = train ,
+                        methodList = c("glm", "nb"),
+                        metric = "AIC",
+                        tuneList = NULL,
+                        continue_on_fail = FALSE,  
+                        preProcess = c("center", "scale"),
+                        trControl = my_ctrl 
+                      )
+model_list$glm
+model_list$nb
+```

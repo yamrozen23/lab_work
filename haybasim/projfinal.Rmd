@@ -1,0 +1,202 @@
+---
+title: "aviscratch"
+ouput: html_document
+date: "2022-09-15"
+---
+```{r}
+library(tidyverse)
+
+
+all_feats <- read_csv("C:/Users/yamro/Downloads/train_feats12.csv")
+
+
+#library(BayesFactor)
+
+longer_feat <- pivot_longer(select(all_feats,-workerId,-text,-split,-startPerson,-advadj),cols=setdiff(colnames(all_feats)[4:(ncol(all_feats)-1)],c('startPerson','advadj')))
+
+wider_feat <- pivot_wider(longer_feat,names_from = 'mem_type',values_from = 'value')
+tz <- longer_feat %>% group_by(name) %>% 
+  summarise(t=t.test(value~mem_type,var.equal=T,paired=T)$statistic,
+            df=t.test(value~mem_type,var.equal=T,paired=T)$parameter,
+            p=t.test(value~mem_type,var.equal=T,paired=T)$p.value,
+            d = effectsize::t_to_d(t.test(value~mem_type,var.equal=T,paired=T)$statistic,t.test(value~mem_type,var.equal=T,paired=T)$parameter,paired=T)$d)
+
+include0.05 <- tz$name[tz$p<0.05]
+include0.01 <- tz$name[tz$p<0.01]
+include0.001 <- tz$name[tz$p<0.001]
+include0.1 <- tz$name[tz$p<0.1]
+include0.15 <- tz$name[tz$p<0.15]
+include0.2 <- tz$name[tz$p<0.2]
+include0.25 <- tz$name[tz$p<0.25]
+include0.3 <- tz$name[tz$p<0.3]
+include0.35 <- tz$name[tz$p<0.35]
+include0.4 <- tz$name[tz$p<0.4]
+include0.5<- tz$name[tz$p<0.5]
+
+
+
+
+now_train_all <- all_feats %>% filter(split%in%c('train','valid')) %>% 
+  select(-workerId,-text,-split,-advadj,-GI_rcloss)
+now_test_all <- all_feats %>% filter(split=='test') %>% 
+  select(-workerId,-text,-split,-advadj,-GI_rcloss)
+
+
+now_train <- all_feats %>% filter(split%in%c('train','valid')) %>% 
+  select(c('mem_type','startPerson',include))
+now_test <- all_feats %>% filter(split=='test') %>% 
+  select(c('mem_type','startPerson',include))
+
+
+library(caret)
+TRC <- trainControl(method='cv',5)
+
+model_func <- function(i=1,tr_dat,ts_dat,tr_method,y_col='mem_type',pos='img',n_cv=5){
+  require(caret)
+  form1 <- formula(paste0('mem_type ~ (.)^',i))
+  if(i==1){
+    form1 <- formula('mem_type ~ .')
+  }
+  comb <- data.frame(model=tr_method,interaction=i,metric = c("accuracy","acc_upper","acc_lower","sens","spec"),
+                     train=NA,test=NA)
+  mytrc <- trainControl(method='cv',n_cv)
+  now_g <- train(form1,tr_dat,method=tr_method,trControl=mytrc)
+  jj <- confusionMatrix(predict(now_g,tr_dat),factor(tr_dat[[y_col]]),positive=pos)
+  comb$train[comb$metric=='accuracy'] <- jj$overall["Accuracy"]
+  comb$train[comb$metric=='acc_upper']  <- jj$overall["AccuracyUpper"]
+  comb$train[comb$metric=='acc_lower'] <- jj$overall["AccuracyLower"]
+  comb$train[comb$metric=='sens'] <- jj$byClass["Sensitivity"]
+  comb$train[comb$metric=='spec'] <- jj$byClass["Specificity"]
+  
+  jj <- confusionMatrix(predict(now_g,ts_dat),factor(ts_dat[[y_col]]),positive=pos)
+  comb$test[comb$metric=='accuracy'] <- jj$overall["Accuracy"]
+  comb$test[comb$metric=='acc_upper']  <- jj$overall["AccuracyUpper"]
+  comb$test[comb$metric=='acc_lower'] <- jj$overall["AccuracyLower"]
+  comb$test[comb$metric=='sens'] <- jj$byClass["Sensitivity"]
+  comb$test[comb$metric=='spec'] <- jj$byClass["Specificity"]
+  return(comb)
+}
+
+rf_func <- function(i=1,tr_dat,ts_dat,y_col='mem_type',pos='img',n_cv=5,trees=500){
+  require(caret)
+  form1 <- formula(paste0('mem_type ~ (.)^',i))
+  if(i==1){
+    form1 <- formula('mem_type ~ .')
+  }
+  comb <- data.frame(model=paste0('rf_',trees),interaction=i,metric = c("accuracy","acc_upper","acc_lower","sens","spec"),
+                     train=NA,test=NA)
+  mytrc <- trainControl(method='cv',n_cv)
+  now_g <- train(form1,tr_dat,method='rf',trControl=mytrc,ntree=trees)
+  jj <- confusionMatrix(predict(now_g,tr_dat),factor(tr_dat[[y_col]]),positive=pos)
+  comb$train[comb$metric=='accuracy'] <- jj$overall["Accuracy"]
+  comb$train[comb$metric=='acc_upper']  <- jj$overall["AccuracyUpper"]
+  comb$train[comb$metric=='acc_lower'] <- jj$overall["AccuracyLower"]
+  comb$train[comb$metric=='sens'] <- jj$byClass["Sensitivity"]
+  comb$train[comb$metric=='spec'] <- jj$byClass["Specificity"]
+  
+  jj <- confusionMatrix(predict(now_g,ts_dat),factor(ts_dat[[y_col]]),positive=pos)
+  comb$test[comb$metric=='accuracy'] <- jj$overall["Accuracy"]
+  comb$test[comb$metric=='acc_upper']  <- jj$overall["AccuracyUpper"]
+  comb$test[comb$metric=='acc_lower'] <- jj$overall["AccuracyLower"]
+  comb$test[comb$metric=='sens'] <- jj$byClass["Sensitivity"]
+  comb$test[comb$metric=='spec'] <- jj$byClass["Specificity"]
+  return(comb)
+}
+
+
+mod_wrap <- function(model_name,ints_n=3){
+  if(grepl('rf',model_name)){
+    now_trees <- as.numeric(str_sub(model_name,4,-1))
+    jy <- lapply(1,rf_func,tr_dat=now_train,ts_dat=now_test,trees=now_trees)
+  }
+  else{
+    jy <- lapply(1:ints_n,model_func,tr_dat=now_train,ts_dat=now_test,tr_method=model_name)  
+  }
+  
+  mod_comb <- data.frame()
+  for(i in 1:length(jy)){
+    mod_comb <- rbind(mod_comb,jy[[i]])
+  }
+  return(mod_comb)
+}
+
+models <- c('glm','glmnet','xgbLinear','adaboost','svmLinear','svmRadial','rf_500','rf_100')
+by_mod <- lapply(models,mod_wrap,ints_n=1)
+
+all_comb <- data.frame()
+for(i in 1:length(by_mod)){
+  all_comb <- rbind(all_comb,by_mod[[i]])
+}
+
+
+all_comb_long <- all_comb %>% select(-interaction) %>% pivot_longer(cols=c(train,test),names_to = 'set')
+all_comb_wider <- all_comb_long %>%
+  pivot_wider(names_from = 'metric',values_from = 'value') %>% 
+  mutate(set=factor(set,levels=c('train','test')))
+all_comb_wider %>% ggplot(aes(x=set,y=accuracy,ymin=acc_upper,ymax=acc_lower,fill=set))+
+  geom_errorbar()+
+  geom_col()+
+  facet_wrap(~model)
+
+################## not include
+require(xgboost)
+
+labels <-   as.numeric(train$mem_type) -1
+  # get the column with the # of humans affected
+labelstes <- as.numeric(test$mem_type)
+labelstes<- labelstes-1
+   
+
+df_train = train[-grep('mem_type', colnames(train))]
+df_train = data.matrix(df_train)
+
+df_test = test[-grep('mem_type', colnames(test))]
+df_test = data.matrix(df_test)
+
+dtrain <- xgb.DMatrix(data = df_train, label= labels)
+dtest <- xgb.DMatrix(data = df_test, label= labelstes)
+model <- xgboost(data = dtrain,
+ eta = 0.01,
+ max_depth = 3, 
+ nround=350, 
+ subsample = 0.5,
+ colsample_bytree = 1,
+ nthread = 5
+, objective = "binary:hinge", gamma = 0.01)
+
+pred <- predict(model, dtest)
+
+# get & print the classification error
+err <- mean(as.numeric(pred > 0.5) != labelstes)
+ RESxgboost<- 1-err
+
+library(catboost)
+train_pool <- catboost.load_pool(data = train%>% select(-"mem_type"), label= labels)
+
+modelcatboost <- catboost.train(train_pool,params = list(loss_function = 'Logloss',
+iterations = 350, metric_period=100))
+real_pool <- catboost.load_pool(data = test%>% select(-"mem_type"), label= labelstes)
+
+predictioncatboost <- catboost.predict(modelcatboost, real_pool)
+y_predcat<-ifelse(predictioncatboost>= 0.5,1,0)
+resCAT<- mean(y_predcat== labelstes)
+
+
+library(randomForest)
+set.seed(120)  # Setting seed
+classifier_RF = randomForest(x = train%>% select(-"mem_type"),
+                             y = train$mem_type,
+                             ntree = 500)
+  
+classifier_RF
+y_predtr<- predict(classifier_RF, train%>% select(-"mem_type"))
+
+y_predtr1err<-1- mean(y_predtr == train$mem_type)
+y_predtr1err
+# Predicting the Test set results
+y_pred = predict(classifier_RF, newdata = test%>% select(-"mem_type"))
+err <- 1- mean(y_pred == test$mem_type)
+resrandom<-1- err
+# Confusion Matrix
+confusion_mtx = table( y_pred,test$mem_type)
+```

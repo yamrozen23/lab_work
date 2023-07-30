@@ -1,0 +1,149 @@
+---
+title: "bert"
+author: "yam rozen"
+date: "5/30/2022"
+output: html_document
+---
+
+```{r}
+embedd<-read.csv("C:/Users/yamro/Downloads/Haibasim_embeddings1.csv", header = T)
+embedd1<-subset(embedd, select = -c(y,ID,X))
+embedd.pca <- prcomp(embedd1, center = TRUE,scale. = TRUE)
+ std_dev <- embedd.pca$sdev
+ pr_var <- std_dev^2
+ prop_varex <- pr_var/sum(pr_var)
+ plot(prop_varex, xlab = "Principal Component",
+             ylab = "Proportion of Variance Explained",
+             type = "b")
+ z<-0
+ i<-1
+ selectfun<- while(z <= 0.995 & i < 500 ){
+   
+ 
+   z<-z+ prop_varex[i]
+   i<-i+1
+  
+ }
+ selectfun
+plot(cumsum(prop_varex)[1:i+100])
+NEWEMBED<-embedd.pca$x
+NEWEMBED1<-NEWEMBED[,1:i]
+newdf<-data.frame(NEWEMBED1,embedd$y)
+library(glmnet)
+library(dplyr)
+library(tidyr)
+
+set.seed(1)
+train = newdf %>%
+  sample_frac(0.8)
+
+test = newdf %>%
+  setdiff(train)
+
+x_train = model.matrix(embedd.y~., train)[,-1]
+x_test = model.matrix(embedd.y~., test)[,-1]
+
+y_train = train %>%
+  select(embedd.y)  %>%
+  unlist() %>%
+  as.numeric()
+
+y_test = test %>%
+  select(embedd.y) %>%
+  unlist() %>%
+  as.numeric()
+
+# Run cross-validation
+mod_cv <- cv.glmnet(x=x_train , y=y_train, alpha=1,family= "binomial")
+plot(mod_cv)
+bestlam =mod_cv$lambda.min# Select lamda that minimizes training MSE
+
+lasso_pred = predict(mod_cv, s = bestlam, newx = x_train,type="response")# Use best lambda to predict test data
+lasso_pred
+lasso_pred= abs(lasso_pred)
+  lasso_pred2<-ifelse(lasso_pred<0.5,0,1)
+  library(caret)
+ lasso_pred2<- (lasso_pred2[,1])
+ lasso_pred2<-factor(lasso_pred2)
+y_train<-factor(y_train)
+confusionMatrix(y_train,lasso_pred2)
+?confusionMatrix
+  
+
+
+
+lasso_pred = predict(mod_cv, s = bestlam, newx = x_test,type="response") # Use best lambda to predict test data
+lasso_pred= abs(lasso_pred)
+  lasso_pred2<-ifelse(lasso_pred<0.5,0,1)
+  lasso_pred2<- (lasso_pred2[,1])
+ lasso_pred2<-factor(lasso_pred2)
+y_test<-factor(y_test)
+confusionMatrix(y_test,lasso_pred2)
+  
+  
+  
+
+
+```
+```{python}
+library(reticulate)
+import numpy as py
+import cPickle as pickle
+from sklearn.decomposition import PCA
+import subprocess
+
+
+
+
+
+# PCA to get Top Components
+pca =  PCA(n_components = 300)
+X_train = X_train - np.mean(X_train)
+X_fit = pca.fit_transform(X_train)
+U1 = pca.components_
+
+z = []
+
+# Removing Projections on Top Components
+for i, x in enumerate(X_train):
+	for u in U1[0:7]:        
+        	x = x - np.dot(u.transpose(),x) * u 
+	z.append(x)
+
+z = np.asarray(z)
+
+# PCA Dim Reduction
+pca =  PCA(n_components = 150)
+X_train = z - np.mean(z)
+X_new_final = pca.fit_transform(X_train)
+
+
+# PCA to do Post-Processing Again
+pca =  PCA(n_components = 150)
+X_new = X_new_final - np.mean(X_new_final)
+X_new = pca.fit_transform(X_new)
+Ufit = pca.components_
+
+X_new_final = X_new_final - np.mean(X_new_final)
+
+final_pca_embeddings = {}
+embedding_file = open('pca_embed2.txt', 'w')
+
+for i, x in enumerate(X_train_names):
+        final_pca_embeddings[x] = X_new_final[i]
+        embedding_file.write("%s\t" % x)
+    	for u in Ufit[0:7]:
+            final_pca_embeddings[x] = final_pca_embeddings[x] - np.dot(u.transpose(),final_pca_embeddings[x]) * u 
+
+        for t in final_pca_embeddings[x]:
+                embedding_file.write("%f\t" % t)
+        
+        embedding_file.write("\n")
+
+
+print("Results for the Embedding")
+print subprocess.check_output(["python", "all_wordsim.py", "pca_embed2.txt", "data/word-sim/"])
+print("Results for Glove")
+print subprocess.check_output(["python", "all_wordsim.py", "../glove.6B/glove.6B.300d.txt", "data/word-sim/"])
+```
+

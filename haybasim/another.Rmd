@@ -1,0 +1,71 @@
+---
+title: "Untitled"
+output: html_document
+date: "2022-09-08"
+---
+
+```{r}
+library(caret)
+library(dplyr)
+tcontrol <- trainControl(method = "repeatedcv",number = 10,repeats = 3)
+
+dat <- read.csv("C:/Users/yamro/Downloads/train_feats12.csv")
+dat<- dat[,-1]
+dat<-dat[,-2]
+dat[["mem_type"]] = factor(dat[["mem_type"]])
+split<-dat$split
+dat = dat %>% mutate_if(is.character, as.factor)
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+dat = dat %>%  mutate(across(.cols = everything(), ~ ifelse(is.infinite(.x), 0, .x)))
+dat[["mem_type"]] = factor(dat[["mem_type"]])
+
+dat = dat %>% select(-"split")
+dat = dat %>% select(-"PERCENT")
+train <- dat[split == "train",]
+test<-  dat[split == "test",]
+valid<- dat[split == "valid",]
+train = rbind(train,valid)
+# KNN
+modelKNNfull <- train(mem_type ~ ., data = train, method = "knn", preProcess = c("center", 
+    "scale"), trControl = tcontrol)  # data is normalised using Preprocess
+# Random Forest
+modelRFfull <- train(mem_type ~ ., data = train, method = "rf", ntree = 100, 
+    importance = T, trControl = tcontrol)
+#  svm
+modelsvmfull <- train(mem_type ~ ., data = train, method = "svmRadial", family = binomial, 
+    trControl = tcontrol)
+ #KNN
+pKNNfull <- predict(modelKNNfull, test)
+# Naive Bayes
+# Random Forest
+pRFfull <- predict(modelRFfull, test)
+# Logistic Regression
+psvmfull <- predict(modelsvmfull, test)
+# KNN
+cmKNN <- confusionMatrix(test$mem_type, pKNNfull)
+# Random Forest
+cmRF <- confusionMatrix(test$mem_type, pRFfull)
+# Logisitic Regression
+cmsvm <- confusionMatrix(test$mem_type, psvmfull)
+ModelType <- c("K nearest neighbor", "Random forest", "svm Radial")  # vector containing names of models
+
+# Training classification accuracy
+TrainAccuracy <- c(max(modelKNNfull$results$Accuracy),  
+    max(modelRFfull$results$Accuracy), max(modelsvmfull$results$Accuracy))
+
+# Training misclassification error
+Train_missclass_Error <- 1 - TrainAccuracy
+
+# validation classification accuracy
+testAccuracy <- c(cmKNN$overall[1], cmRF$overall[1], 
+    cmsvm$overall[1])
+
+# Validation misclassification error or out-of-sample-error
+test_missclass_Error <- 1 - testAccuracy
+
+metrics <- data.frame(ModelType, TrainAccuracy, Train_missclass_Error, testAccuracy, 
+    test_missclass_Error)  # data frame with above metrics
+
+knitr::kable(metrics, digits = 5)
+
+```
